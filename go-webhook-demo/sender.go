@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"log"
 	"math"
 	"net/http"
@@ -10,10 +11,11 @@ import (
 	"time"
 )
 
+// dummy commit
 const (
-	maxRetries    = 3
-	initialDelay  = 1 * time.Second
-	webhookURL    = "http://localhost:8080/webhook" // Define URL as a constant
+	maxRetries   = 3
+	initialDelay = 1 * time.Second
+	webhookURL   = "http://localhost:8080/webhook" // Define URL as a constant
 )
 
 func sendWebhookWithRetries(payload []byte) error {
@@ -43,7 +45,7 @@ func sendWebhookWithRetries(payload []byte) error {
 		delay := time.Duration(math.Pow(2, float64(attempt))) * initialDelay
 		log.Printf("Waiting %v before retry...", delay)
 		time.Sleep(delay)
-		
+
 	}
 	return fmt.Errorf("all %d retries failed", maxRetries)
 }
