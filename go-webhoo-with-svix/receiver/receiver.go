@@ -13,9 +13,6 @@ import (
 	svix "github.com/svix/svix-webhooks/go"
 )
 
-// sender and receiver share the same secret key
-const secretKeyReciever = "mysecretkey"
-
 // ProcessWebhook processes the incoming webhook payload
 func ProcessWebhook(c echo.Context) error {
 	log.Println("Received webhook request inside the receiver")

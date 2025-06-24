@@ -1,4 +1,4 @@
-package sender
+package main
 
 import (
 	"context"
@@ -20,6 +20,10 @@ func SendWebhook(payload map[string]interface{}) error {
 	// svix implementation
 	svixApiKey := configs.GetSvixKey()
 	svixAppId := configs.GetSvixAppID()
+
+	log.Println("Sending webhook via Svix...")
+	log.Println("svixApiKey:", svixApiKey)
+	log.Println("svixAppId:", svixAppId)
 
 	if svixApiKey == "" || svixAppId == "" {
 		return fmt.Errorf("svix_key or svix_app_id is missing in the configuration")
