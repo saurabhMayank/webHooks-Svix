@@ -18,3 +18,4 @@ Webhooks and Svix Implementation in Python
 - Calling the svix client, svix dashboard is receiving request
 - But app is running locally so svix not able to access the API
 - Need to host this app, so that svix app is able to call the app
+- livspace email has the svix app
