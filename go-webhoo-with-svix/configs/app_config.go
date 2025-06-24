@@ -22,3 +22,22 @@ func InitConfig() error {
 func GetSvixKey() string {
 	return viper.GetString("svix_key")
 }
+
+func GetSvixURL() string {
+	return viper.GetString("svix_app_url")
+}
+
+// svix_app_id
+func GetSvixAppID() string {
+	return viper.GetString("svix_app_id")
+}
+
+// svix_app_name
+func GetSvixAppName() string {
+	return viper.GetString("svix_app_name")
+}
+
+// svix_signing_key
+func GetSvixSigningKey() string {
+	return viper.GetString("svix_signing_key")
+}

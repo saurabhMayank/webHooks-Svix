@@ -1,16 +1,16 @@
 package receiver
 
 import (
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/base64"
 	"encoding/json"
+	"go-webhoo-with-svix/configs"
 	"io"
 	"log"
 	"math/rand"
 	"net/http"
+	"time"
 
 	"github.com/labstack/echo/v4"
+	svix "github.com/svix/svix-webhooks/go"
 )
 
 // sender and receiver share the same secret key
@@ -22,7 +22,9 @@ func ProcessWebhook(c echo.Context) error {
 
 	// Simulate random network failures in 50% of calls
 	// it could be network error, it could some internal server error, it could resource is not ready
-	if rand.Intn(2) == 0 { // Randomly return an error for 50% of calls
+	// Create a new random number generator with a custom source
+	var rng = rand.New(rand.NewSource(time.Now().UnixNano()))
+	if rng.Intn(2) == 0 { // Randomly return an error for 50% of calls
 		log.Println("Simulating random failure 50% of the time")
 		return echo.NewHTTPError(http.StatusInternalServerError, "Simulated network error")
 	}
@@ -33,9 +35,8 @@ func ProcessWebhook(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid payload"})
 	}
 
-	signature := c.Request().Header.Get("X-HMAC-Signature")
-	if !ValidateHMAC(body, signature) {
-		log.Println("Invalid HMAC signature")
+	if !ValidateSvixSignature(body, c.Request().Header) {
+		log.Println("Invalid svix signature")
 		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 	}
 
@@ -49,10 +50,26 @@ func ProcessWebhook(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]string{"status": "success"})
 }
 
-// ValidateHMAC validates the HMAC signature
-func ValidateHMAC(data []byte, signature string) bool {
-	h := hmac.New(sha256.New, []byte(secretKeyReciever))
-	h.Write(data)
-	expectedSignature := base64.StdEncoding.EncodeToString(h.Sum(nil))
-	return hmac.Equal([]byte(expectedSignature), []byte(signature))
+// ValidateSvixSignature validates the Svix signature
+func ValidateSvixSignature(payload []byte, headers http.Header) bool {
+	svixSigningKey := configs.GetSvixSigningKey()
+	wh, err := svix.NewWebhook(svixSigningKey)
+	if err != nil {
+		log.Println("Failed to initialize Svix webhook verifier:", err)
+		return false
+	}
+
+	signature := headers.Get("Svix-Signature")
+	if signature == "" {
+		log.Println("Missing Svix-Signature header")
+		return false
+	}
+
+	err = wh.Verify(payload, headers)
+	if err != nil {
+		log.Println("Invalid Svix signature:", err)
+		return false
+	}
+
+	return true
 }

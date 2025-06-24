@@ -1,100 +1,55 @@
 package sender
 
 import (
-	"bytes"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/base64"
+	"context"
 	"encoding/json"
 	"fmt"
+	"go-webhoo-with-svix/configs"
 	"log"
-	"math"
-	"net/http"
-	"net/url"
 	"os"
-	"time"
+
+	svix "github.com/svix/svix-webhooks/go"
 )
-
-const (
-	webhookURL   = "http://localhost:8080/webhook"
-	maxRetries   = 5
-	initialDelay = time.Second
-	// secretKeySender = "mysecretkeyNew" // key changed, it should break now
-	secretKeySender = "mysecretkey" // key changed, it should break now
-)
-
-// SecurePayload encrypts and signs the payload using HMAC
-func SecurePayload(payload map[string]interface{}) (string, string, error) {
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return "", "", err
-	}
-
-	// Generate HMAC signature
-	h := hmac.New(sha256.New, []byte(secretKeySender))
-	h.Write(data)
-	signature := base64.StdEncoding.EncodeToString(h.Sum(nil))
-
-	return string(data), signature, nil
-}
-
-// PrintCurlCommand prints the equivalent curl command for the API request
-func PrintCurlCommand(payload string, signature string) {
-	fmt.Println("Equivalent cURL command:")
-	fmt.Printf(`curl -X POST %s -H "Content-Type: application/json" -H "X-HMAC-Signature: %s" -d '%s'\n`, webhookURL, signature, payload)
-}
 
 // SendWebhook sends the webhook with retries
 func SendWebhook(payload map[string]interface{}) error {
-	data, signature, err := SecurePayload(payload)
+	// replacing svix with manual code of sending webhook and doing retries
+	// when sending webhook request manually need to take care of retries and encrypting the body
+	// which svix takes care of
+
+	// svix implementation
+	svixApiKey := configs.GetSvixKey()
+	svixAppId := configs.GetSvixAppID()
+
+	if svixApiKey == "" || svixAppId == "" {
+		return fmt.Errorf("svix_key or svix_app_id is missing in the configuration")
+	}
+
+	// Initialize the Svix client
+	client, err := svix.New(svixApiKey, nil)
 	if err != nil {
-		return fmt.Errorf("failed to secure payload: %v", err)
+		log.Fatalf("Failed to initialize Svix client: %v", err)
 	}
 
-	// Validate URL before any attempts
-	if _, err := url.ParseRequestURI(webhookURL); err != nil {
-		return fmt.Errorf("invalid URL: %w", err) // Abort immediately
+	// Define the webhook payload
+	eventType := "example.event" // Replace with your event type
+	// payloadBytes, err := json.Marshal(payload)
+	// if err != nil {
+	// 	return fmt.Errorf("failed to marshal payload: %v", err)
+	// }
+
+	// Send the webhook using Svix
+	_, err = client.Message.Create(context.Background(), svixAppId, svix.MessageIn{
+		EventType: eventType,
+		Payload:   payload,
+	}, nil)
+
+	if err != nil {
+		return fmt.Errorf("failed to send webhook via Svix: %v", err)
 	}
 
-	for attempt := 0; attempt < maxRetries; attempt++ {
-		req, err := http.NewRequest("POST", webhookURL, bytes.NewBuffer([]byte(data)))
-		if err != nil {
-			return fmt.Errorf("failed to create request: %v", err)
-		}
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("X-HMAC-Signature", signature)
-
-		// Print the cURL command
-		PrintCurlCommand(data, signature)
-
-		resp, err := http.DefaultClient.Do(req)
-
-		if err != nil { // some network glitch
-			log.Printf("Attempt %d: Failed with HTTP status: %v", attempt+1, resp.Status)
-		} else {
-			defer resp.Body.Close()
-			if resp.StatusCode == http.StatusUnauthorized {
-				log.Println("Unauthorized: Invalid HMAC signature. Please check the secret key.")
-				return fmt.Errorf("unauthorized: invalid HMAC signature")
-			} else if resp.StatusCode == http.StatusBadRequest {
-				log.Println("Bad Request: The payload might be invalid or malformed.")
-				return fmt.Errorf("bad request: the payload might be invalid or malformed")
-			} else if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-				// add a new line for better readability
-				log.Println()
-				log.Println("Webhook sent successfully!")
-				return nil
-			} else {
-				log.Printf("Attempt %d: Failed with HTTP status: %v", attempt+1, resp.Status)
-			}
-		}
-
-		// Exponential backoff
-		delay := time.Duration(math.Pow(2, float64(attempt))) * initialDelay
-		log.Printf("Waiting %v before retry...", delay)
-		time.Sleep(delay)
-	}
-	return fmt.Errorf("all %d retries failed", maxRetries)
+	log.Println("Webhook sent successfully via Svix!")
+	return nil
 }
 
 func main() {
